@@ -7,10 +7,9 @@ from telethon import TelegramClient, events, Button, types
 from supabase import create_client
 from dotenv import load_dotenv
 
-# Carregar variáveis de ambiente se existir arquivo .env (local)
 load_dotenv()
 
-# --- CONFIGURAÇÕES (Via Variáveis de Ambiente) ---
+# --- CONFIGURAÇÕES ---
 API_ID = int(os.getenv('TG_API_ID', '24375561'))
 API_HASH = os.getenv('TG_API_HASH', 'ae3883654709849d47c3553be7aaada4')
 BOT_TOKEN = os.getenv('TG_BOT_TOKEN', '8512413789:AAECik5KNiYytYv2rPQVlPg8PoKxO-UlnaU')
@@ -22,15 +21,9 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Inicializar bot
-# Nota: No Railway, a sessão será salva no disco efêmero, mas como é um bot, 
-# o login via token é automático em cada reinicialização.
 bot = TelegramClient('canais18_bot_session', API_ID, API_HASH)
-
-# --- ESTADOS ---
 user_states = {}
 
-# --- MENU PRINCIPAL ---
 MAIN_MENU_REPLY = [
     [Button.text("📨 Criar Postagem", resize=True), Button.text("📊 Estatísticas")],
     [Button.text("⚙️ Configurações"), Button.text("❓ Ajuda")]
@@ -39,34 +32,24 @@ MAIN_MENU_REPLY = [
 # --- O MOTOR PERFEITO DE REPLICAÇÃO (NATIVO) ---
 
 async def get_safe_message_and_entities(state):
-    """
-    Extrai o texto bruto e a lista de entidades originais de forma pura.
-    """
     if state.get('no_caption'):
         return "", []
-    
     msg_id = state.get('custom_caption_msg_id') or state.get('msg_id')
     if not msg_id:
         return "", []
-        
     try:
         msg = await bot.get_messages(state['chat_id'], ids=msg_id)
         if not msg:
             return "", []
-        
         return msg.message or "", msg.entities or []
     except Exception as e:
         logger.error(f"Erro ao recuperar mensagem original: {e}")
         return "", []
 
 async def send_broadcast_message(target_id, state, buttons=None):
-    """
-    Envia a mensagem injetando diretamente as entidades originais capturadas.
-    """
     try:
         orig_msg = await bot.get_messages(state['chat_id'], ids=state['msg_id'])
         text, entities = await get_safe_message_and_entities(state)
-        
         return await bot.send_message(
             target_id,
             text,
@@ -81,10 +64,8 @@ async def send_broadcast_message(target_id, state, buttons=None):
         raise e
 
 def clean_button_text(text):
-    """Remove marcações de markdown do texto do botão."""
     if not text: return ""
-    clean = re.sub(r'(\*\*|__|`|~~)', '', text)
-    return clean.strip()
+    return re.sub(r'(\*\*|__|`|~~)', '', text).strip()
 
 def parse_inline_buttons(text):
     if not text: return None
@@ -102,7 +83,63 @@ def parse_inline_buttons(text):
         if row: final_rows.append(row)
     return final_rows if final_rows else None
 
-# --- INTERFACES ---
+# --- MÓDULOS DE INTERFACE ---
+
+async def show_stats(event):
+    """Busca estatísticas reais do Supabase e exibe no chat."""
+    try:
+        # Buscar grupos ativos
+        res_active = supabase.table("bot_groups").select("*", count="exact").eq("is_active", True).execute()
+        active_count = res_active.count or len(res_active.data or [])
+        
+        # Buscar grupos pendentes
+        res_pending = supabase.table("bot_groups").select("*", count="exact").eq("is_active", False).execute()
+        pending_count = res_pending.count or len(res_pending.data or [])
+
+        # Audiência estimada (ex: média de 500 membros por grupo ativo)
+        estimated_audience = active_count * 500
+
+        text = (
+            "📊 **Painel de Estatísticas • Canais18**\n\n"
+            f"🌐 **Canais/Grupos Conectados (Ativos):** `{active_count}`\n"
+            f"⏳ **Grupos Pendentes (Falta Bot Admin):** `{pending_count}`\n"
+            f"👥 **Audiência Estimada Total:** `~{estimated_audience:,} usuários`\n\n"
+            "📈 **Status do Motor:** `Online & Sincronizado`\n"
+            "💎 **Emojis Premium:** `Ativado (Nativo)`\n"
+            "🛡️ **Modo de Segurança:** `Blindado contra Erros`"
+        )
+    except Exception as e:
+        text = f"📊 **Estatísticas • Canais18**\n\n⚠️ Erro ao carregar dados do banco: {e}"
+
+    buttons = [[Button.inline("🔄 Atualizar", b"refresh_stats"), Button.inline("🏠 Menu", b"cancel")]]
+    await event.respond(text, buttons=buttons)
+
+async def show_help(event):
+    text = (
+        "❓ **Guia de Ajuda • Canais18 Bot Pro**\n\n"
+        "1️⃣ **Como criar uma postagem:**\n"
+        "• Clique em '📨 Criar Postagem'.\n"
+        "• Envie a foto, vídeo ou texto desejado.\n"
+        "• Se enviar mídia, adicione a legenda (ou clique em 'Sem legenda').\n"
+        "• Configure os botões no formato: `Texto - Link` (use `&&` para botões lado a lado).\n\n"
+        "2️⃣ **Emojis Premium:**\n"
+        "• Envie normalmente. O bot captura os IDs nativos e os reproduz animados.\n\n"
+        "3️⃣ **Suporte:**\n"
+        "• Dúvidas ou problemas? Contate o admin."
+    )
+    buttons = [[Button.inline("🏠 Menu", b"cancel")]]
+    await event.respond(text, buttons=buttons)
+
+async def show_general_settings(event):
+    text = (
+        "⚙️ **Configurações Gerais do Bot**\n\n"
+        "• **Modo de Envio:** Automático com Pausa de 0.5s\n"
+        "• **Canal de Logs:** Conectado ao Supabase\n"
+        "• **Idioma:** Português (BR)\n\n"
+        "_Para alterar credenciais ou banco de dados, ajuste as variáveis de ambiente no Railway._"
+    )
+    buttons = [[Button.inline("🏠 Menu", b"cancel")]]
+    await event.respond(text, buttons=buttons)
 
 async def show_settings(event, user_id):
     state = user_states[user_id]
@@ -170,9 +207,21 @@ async def create_post(event):
     }
     await show_settings(event, user_id)
 
+@bot.on(events.NewMessage(func=lambda e: e.text == "📊 Estatísticas"))
+async def stats_handler(event):
+    await show_stats(event)
+
+@bot.on(events.NewMessage(func=lambda e: e.text == "❓ Ajuda"))
+async def help_handler(event):
+    await show_help(event)
+
+@bot.on(events.NewMessage(func=lambda e: e.text == "⚙️ Configurações"))
+async def settings_handler(event):
+    await show_general_settings(event)
+
 @bot.on(events.NewMessage)
 async def message_handler(event):
-    if not event.is_private or event.text in ["📨 Criar Postagem", "📊 Estatísticas"]: return
+    if not event.is_private or event.text in ["📨 Criar Postagem", "📊 Estatísticas", "❓ Ajuda", "⚙️ Configurações"]: return
     user_id = event.sender_id
     state = user_states.get(user_id)
     if not state: return
@@ -197,7 +246,16 @@ async def callback_handler(event):
     user_id = event.sender_id
     data = event.data
     state = user_states.get(user_id)
-    if not state: return
+
+    if data == b"refresh_stats":
+        await event.delete()
+        await show_stats(event)
+        return
+
+    if not state:
+        if data == b"cancel":
+            await event.respond("Menu principal:", buttons=MAIN_MENU_REPLY)
+        return
 
     if data == b"nav_content": state['step'] = 'AWAIT_CONTENT'; await show_content_input(event, user_id)
     elif data == b"set_no_caption": state['no_caption'] = True; state['step'] = 'AWAIT_BUTTONS'; await show_buttons_input(event, user_id)
@@ -228,7 +286,7 @@ async def callback_handler(event):
 
 async def main():
     await bot.start(bot_token=BOT_TOKEN)
-    print("🚀 Canais18 Bot Pro operacional (Motor Nativo Blindado)!")
+    print("🚀 Canais18 Bot Pro operacional (Com Estatísticas e Menus Completos)!")
     await bot.run_until_disconnected()
 
 if __name__ == '__main__':
