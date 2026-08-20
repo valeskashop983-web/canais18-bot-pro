@@ -193,6 +193,15 @@ async def show_final_menu(event, user_id):
 async def start(event):
     await event.respond("👋 **Canais18 Bot Pro**", buttons=MAIN_MENU_REPLY)
 
+@bot.on(events.NewMessage(pattern='/test_db'))
+async def test_db_handler(event):
+    """Comando secreto para testar a conexão com o banco de dados."""
+    try:
+        res = supabase.table("bot_groups").select("id").limit(1).execute()
+        await event.respond(f"✅ **Conexão Supabase OK!**\nStatus: 200\nRegistros encontrados: {len(res.data) if res.data else 0}")
+    except Exception as e:
+        await event.respond(f"❌ **Falha na Conexão Supabase:**\n`{str(e)}`")
+
 @bot.on(events.NewMessage(func=lambda e: e.text == "📨 Criar Postagem"))
 async def create_post(event):
     user_id = event.sender_id
