@@ -145,7 +145,12 @@ async def show_stats(event):
             "_Os dados são atualizados em tempo real com o Supabase._"
         )
     except Exception as e:
-        text = f"📊 **Estatísticas**\n\n⚠️ Erro ao conectar ao banco de dados: {e}"
+        logger.error(f"Erro nas estatísticas: {e}")
+        text = (
+            "📊 **Estatísticas • Canais18**\n\n"
+            "⚠️ **Falha na conexão com o banco de dados.**\n\n"
+            "Por favor, verifique se a variável `SUPABASE_SERVICE_KEY` está configurada corretamente no painel do Railway."
+        )
 
     buttons = [[Button.inline("🔄 Atualizar", b"refresh_stats"), Button.inline("🏠 Menu Principal", b"cancel")]]
     await event.respond(text, buttons=buttons)
