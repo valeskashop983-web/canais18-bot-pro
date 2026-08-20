@@ -21,6 +21,10 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Diagnóstico de chave
+logger.info(f"🔑 Supabase URL: {SUPABASE_URL}")
+logger.info(f"🔑 Supabase Key (Início): {SUPABASE_KEY[:10]}... (Tamanho: {len(SUPABASE_KEY)})")
+
 bot = TelegramClient('canais18_bot_session', API_ID, API_HASH)
 user_states = {}
 
