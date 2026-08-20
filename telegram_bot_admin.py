@@ -29,7 +29,7 @@ MAIN_MENU_REPLY = [
     [Button.text("⚙️ Configurações"), Button.text("❓ Ajuda")]
 ]
 
-# --- O MOTOR PERFEITO DE REPLICAÇÃO (NATIVO) ---
+# --- MOTOR DE REPLICAÇÃO NATIVO (PREMIUM) ---
 
 async def get_safe_message_and_entities(state):
     if state.get('no_caption'):
@@ -68,6 +68,7 @@ def clean_button_text(text):
     return re.sub(r'(\*\*|__|`|~~)', '', text).strip()
 
 def parse_inline_buttons(text):
+    """Parser avançado: Texto - Link. Use && para botões na mesma linha."""
     if not text: return None
     final_rows = []
     lines = text.split('\n')
@@ -86,57 +87,38 @@ def parse_inline_buttons(text):
 # --- MÓDULOS DE INTERFACE ---
 
 async def show_stats(event):
-    """Busca estatísticas reais do Supabase e exibe no chat."""
     try:
-        # Buscar grupos ativos
         res_active = supabase.table("bot_groups").select("*", count="exact").eq("is_active", True).execute()
         active_count = res_active.count or len(res_active.data or [])
-        
-        # Buscar grupos pendentes
         res_pending = supabase.table("bot_groups").select("*", count="exact").eq("is_active", False).execute()
         pending_count = res_pending.count or len(res_pending.data or [])
-
-        # Audiência estimada (ex: média de 500 membros por grupo ativo)
         estimated_audience = active_count * 500
 
         text = (
-            "📊 **Painel de Estatísticas • Canais18**\n\n"
-            f"🌐 **Canais/Grupos Conectados (Ativos):** `{active_count}`\n"
-            f"⏳ **Grupos Pendentes (Falta Bot Admin):** `{pending_count}`\n"
-            f"👥 **Audiência Estimada Total:** `~{estimated_audience:,} usuários`\n\n"
-            "📈 **Status do Motor:** `Online & Sincronizado`\n"
-            "💎 **Emojis Premium:** `Ativado (Nativo)`\n"
-            "🛡️ **Modo de Segurança:** `Blindado contra Erros`"
+            "📊 **Estatísticas Profissionais • Canais18**\n\n"
+            f"🌐 **Canais Conectados:** `{active_count}`\n"
+            f"⏳ **Aguardando Admin:** `{pending_count}`\n"
+            f"👥 **Alcance Estimado:** `~{estimated_audience:,} users`\n\n"
+            "✅ **Motor UTF-16 Premium:** `Ativo`\n"
+            "📌 **Auto-Fixação:** `Disponível`"
         )
     except Exception as e:
-        text = f"📊 **Estatísticas • Canais18**\n\n⚠️ Erro ao carregar dados do banco: {e}"
+        text = f"📊 **Estatísticas**\n\n⚠️ Erro: {e}"
 
     buttons = [[Button.inline("🔄 Atualizar", b"refresh_stats"), Button.inline("🏠 Menu", b"cancel")]]
     await event.respond(text, buttons=buttons)
 
 async def show_help(event):
     text = (
-        "❓ **Guia de Ajuda • Canais18 Bot Pro**\n\n"
-        "1️⃣ **Como criar uma postagem:**\n"
-        "• Clique em '📨 Criar Postagem'.\n"
-        "• Envie a foto, vídeo ou texto desejado.\n"
-        "• Se enviar mídia, adicione a legenda (ou clique em 'Sem legenda').\n"
-        "• Configure os botões no formato: `Texto - Link` (use `&&` para botões lado a lado).\n\n"
-        "2️⃣ **Emojis Premium:**\n"
-        "• Envie normalmente. O bot captura os IDs nativos e os reproduz animados.\n\n"
-        "3️⃣ **Suporte:**\n"
-        "• Dúvidas ou problemas? Contate o admin."
-    )
-    buttons = [[Button.inline("🏠 Menu", b"cancel")]]
-    await event.respond(text, buttons=buttons)
-
-async def show_general_settings(event):
-    text = (
-        "⚙️ **Configurações Gerais do Bot**\n\n"
-        "• **Modo de Envio:** Automático com Pausa de 0.5s\n"
-        "• **Canal de Logs:** Conectado ao Supabase\n"
-        "• **Idioma:** Português (BR)\n\n"
-        "_Para alterar credenciais ou banco de dados, ajuste as variáveis de ambiente no Railway._"
+        "❓ **Guia ChannelHelp Style • Canais18**\n\n"
+        "✨ **Criação de Postagens:**\n"
+        "1. Clique em '📨 Criar Postagem'.\n"
+        "2. Envie a mídia ou texto (Emojis Premium são aceitos).\n"
+        "3. Configure os botões:\n"
+        "   `Site - https://canais18.com` (1 botão)\n"
+        "   `Bot - t.me/bot && Site - canais18.com` (2 botões lado a lado)\n\n"
+        "📌 **Destaque:**\n"
+        "Ative a opção 'Fixar postagem' no menu final para destacar sua mensagem em todos os grupos."
     )
     buttons = [[Button.inline("🏠 Menu", b"cancel")]]
     await event.respond(text, buttons=buttons)
@@ -145,57 +127,57 @@ async def show_settings(event, user_id):
     state = user_states[user_id]
     s = state['settings']
     text = (
-        "📨 **Criar posts • Guia**\n\n"
-        "Configure sua postagem abaixo.\n\n"
-        "• Botões à esquerda: Informações.\n"
-        "• Botões à direita: Alterar configuração."
+        "📨 **Editor de Postagem • Configurações**\n\n"
+        "Ajuste os parâmetros antes de enviar o conteúdo."
     )
     buttons = [
-        [Button.inline("➡️ Próximo", b"nav_content")],
-        [Button.inline("🔔 Notificações", b"info"), Button.inline("✅ SIM" if s['notify'] else "❌ NÃO", b"tog_notif")],
-        [Button.inline("🏷️ Visualização do link", b"info"), Button.inline("✅ SIM" if s['preview'] else "❌ NÃO", b"tog_preview")],
-        [Button.inline("📑 Formatação", b"info"), Button.inline("🟦 Nativa (Premium)", b"info")],
-        [Button.inline("🔒 Protegido", b"info"), Button.inline("✅ SIM" if s['protected'] else "❌ NÃO", b"tog_protect")],
-        [Button.inline("🏠 Menu", b"cancel"), Button.inline("⬅️ Voltar", b"cancel")]
+        [Button.inline("➡️ Próximo Passo", b"nav_content")],
+        [Button.inline("🔔 Notificar", b"info"), Button.inline("✅ ON" if s['notify'] else "❌ OFF", b"tog_notif")],
+        [Button.inline("🏷️ Preview Link", b"info"), Button.inline("✅ ON" if s['preview'] else "❌ OFF", b"tog_preview")],
+        [Button.inline("📌 Fixar Post", b"info"), Button.inline("✅ ON" if s['pin'] else "❌ OFF", b"tog_pin")],
+        [Button.inline("🏠 Menu", b"cancel")]
     ]
     await (event.edit(text, buttons=buttons) if hasattr(event, 'data') else event.respond(text, buttons=buttons))
 
 async def show_content_input(event, user_id):
-    text = "**Envie a mensagem de postagem ou mídia**\n\n_💡 Emojis Premium e formatação serão preservados nativamente._"
-    buttons = [[Button.inline("🏠 Menu", b"cancel"), Button.inline("⬅️ Voltar", b"nav_settings")]]
+    text = "**Etapa 1: Envie o conteúdo principal**\n\n(Foto, Vídeo, GIF ou Texto puro com Emojis Premium)"
+    buttons = [[Button.inline("⬅️ Voltar", b"nav_settings"), Button.inline("🏠 Menu", b"cancel")]]
     await event.edit(text, buttons=buttons)
 
 async def show_caption_input(event, user_id):
-    text = "**Envie a legenda da mídia**\n\n_💡 Seus Emojis Premium e formatação serão capturados de forma pura._"
+    text = "**Etapa 2: Envie a legenda da mídia**\n\n(Ou clique abaixo para enviar sem legenda)"
     buttons = [[Button.inline("🚫 Sem legenda", b"set_no_caption")], [Button.inline("🏠 Menu", b"cancel")]]
     await event.respond(text, buttons=buttons)
 
 async def show_buttons_input(event, user_id):
-    text = "**Defina os botões para a publicação**\n\nUse o formato: `Texto - Link`"
+    text = (
+        "**Etapa 3: Configurar Botões Inline**\n\n"
+        "Formato: `Texto - Link`\n"
+        "Exemplo:\n`🌐 Site - https://google.com && 🤖 Bot - https://t.me/bot`"
+    )
     buttons = [[Button.inline("🚫 Sem botões", b"nav_final")], [Button.inline("🏠 Menu", b"cancel")]]
     await event.respond(text, buttons=buttons)
 
 async def show_final_menu(event, user_id):
     state = user_states[user_id]
-    await event.respond("👁️ **PRÉ-VISUALIZAÇÃO:**")
+    await event.respond("👁️ **PRÉ-VISUALIZAÇÃO DA POSTAGEM:**")
     try:
         await send_broadcast_message(event.chat_id, state, buttons=parse_inline_buttons(state['buttons_raw']))
     except Exception as e:
-        logger.error(f"Erro no preview: {e}")
-        await event.respond(f"⚠️ **Erro no Sistema:** {e}\n\n_Verifique se a conta do bot possui Telegram Premium._")
+        await event.respond(f"⚠️ **Erro no Preview:** {e}")
 
     buttons = [
-        [Button.inline("💾 Salvar Postagem", b"info"), Button.inline("👤 Enviar postagem ➡️", b"send_now")],
-        [Button.inline("📌 Fixar postagem", b"info"), Button.inline("✅ SIM" if state['settings']['pin'] else "❌ NÃO", b"tog_pin")],
+        [Button.inline("👤 Enviar Agora ➡️", b"send_now")],
+        [Button.inline("📅 Agendar (Em breve)", b"info")],
         [Button.inline("🏠 Menu", b"cancel")]
     ]
-    await event.respond("Escolha uma ação final:", buttons=buttons)
+    await event.respond("Tudo pronto para o broadcast?", buttons=buttons)
 
 # --- HANDLERS ---
 
 @bot.on(events.NewMessage(pattern='/start'))
 async def start(event):
-    await event.respond("👋 **Painel Admin Canais18**", buttons=MAIN_MENU_REPLY)
+    await event.respond("👋 **Canais18 Bot Pro**\n_Central de Broadcast & Gestão_", buttons=MAIN_MENU_REPLY)
 
 @bot.on(events.NewMessage(func=lambda e: e.text == "📨 Criar Postagem"))
 async def create_post(event):
@@ -203,7 +185,7 @@ async def create_post(event):
     user_states[user_id] = {
         'step': 'SETTINGS', 'chat_id': event.chat_id,
         'settings': {'notify': True, 'preview': True, 'protected': False, 'pin': False},
-        'msg_id': None, 'custom_caption_msg_id': None, 'no_caption': False, 'buttons_raw': None
+        'msg_id': None, 'custom_caption_msg_id': None, 'no_caption': False, 'buttons_raw': ""
     }
     await show_settings(event, user_id)
 
@@ -217,7 +199,7 @@ async def help_handler(event):
 
 @bot.on(events.NewMessage(func=lambda e: e.text == "⚙️ Configurações"))
 async def settings_handler(event):
-    await show_general_settings(event)
+    await event.respond("⚙️ **Configurações Globais**\n\n• Motor: UTF-16 Nativo\n• Status: Operacional\n• Versão: 2.0 (CH Style)")
 
 @bot.on(events.NewMessage)
 async def message_handler(event):
@@ -230,12 +212,10 @@ async def message_handler(event):
         state['msg_id'] = event.id
         state['step'] = 'AWAIT_CAPTION' if event.media else 'AWAIT_BUTTONS'
         await (show_caption_input(event, user_id) if event.media else show_buttons_input(event, user_id))
-    
     elif state['step'] == 'AWAIT_CAPTION':
         state['custom_caption_msg_id'] = event.id
         state['step'] = 'AWAIT_BUTTONS'
         await show_buttons_input(event, user_id)
-
     elif state['step'] == 'AWAIT_BUTTONS':
         state['buttons_raw'] = event.text
         state['step'] = 'FINAL_MENU'
@@ -253,40 +233,38 @@ async def callback_handler(event):
         return
 
     if not state:
-        if data == b"cancel":
-            await event.respond("Menu principal:", buttons=MAIN_MENU_REPLY)
+        if data == b"cancel": await event.respond("Menu:", buttons=MAIN_MENU_REPLY)
         return
 
     if data == b"nav_content": state['step'] = 'AWAIT_CONTENT'; await show_content_input(event, user_id)
     elif data == b"set_no_caption": state['no_caption'] = True; state['step'] = 'AWAIT_BUTTONS'; await show_buttons_input(event, user_id)
     elif data == b"nav_final": state['step'] = 'FINAL_MENU'; await show_final_menu(event, user_id)
-    elif data == b"cancel": user_states.pop(user_id, None); await event.respond("Operação cancelada.", buttons=MAIN_MENU_REPLY)
-    elif data == b"tog_pin": state['settings']['pin'] = not state['settings']['pin']; await show_final_menu(event, user_id)
+    elif data == b"cancel": user_states.pop(user_id, None); await event.respond("Cancelado.", buttons=MAIN_MENU_REPLY)
+    elif data == b"tog_pin": state['settings']['pin'] = not state['settings']['pin']; await show_settings(event, user_id)
     elif data == b"tog_notif": state['settings']['notify'] = not state['settings']['notify']; await show_settings(event, user_id)
     elif data == b"tog_preview": state['settings']['preview'] = not state['settings']['preview']; await show_settings(event, user_id)
-    elif data == b"tog_protect": state['settings']['protected'] = not state['settings']['protected']; await show_settings(event, user_id)
     
     elif data == b"send_now":
-        await event.edit("🚀 **Disparando postagem...**")
+        await event.edit("🚀 **Disparando broadcast...**")
         res = supabase.table("bot_groups").select("chat_id").eq("is_active", True).execute()
         success = 0
         btns = parse_inline_buttons(state['buttons_raw'])
         for g in (res.data or []):
             try:
                 sent = await send_broadcast_message(int(g['chat_id']), state, buttons=btns)
-                if state['settings']['pin']: 
+                if state['settings']['pin']:
                     try: await bot.pin_message(int(g['chat_id']), sent.id)
                     except: pass
                 success += 1
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(0.3) # Broadcast mais rápido
             except Exception as e:
-                logger.error(f"Erro ao enviar para {g['chat_id']}: {e}")
-        await event.respond(f"✅ Enviado para {success} grupos.", buttons=MAIN_MENU_REPLY)
+                logger.error(f"Erro em {g['chat_id']}: {e}")
+        await event.respond(f"✅ Sucesso: {success} grupos alcançados.", buttons=MAIN_MENU_REPLY)
         user_states.pop(user_id, None)
 
 async def main():
     await bot.start(bot_token=BOT_TOKEN)
-    print("🚀 Canais18 Bot Pro operacional (Com Estatísticas e Menus Completos)!")
+    print("🚀 Canais18 Bot Pro operacional (CH Style)!")
     await bot.run_until_disconnected()
 
 if __name__ == '__main__':
