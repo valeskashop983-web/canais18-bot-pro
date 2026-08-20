@@ -35,54 +35,45 @@ MAIN_MENU_REPLY = [
 
 # --- MOTOR DE SINCRONIZAÇÃO EM TEMPO REAL ---
 
+async def sync_chat_status(chat_id, chat_obj=None):
+    """Sincroniza o status de um chat específico com o Supabase."""
+    try:
+        if not chat_obj:
+            chat_obj = await bot.get_entity(int(chat_id))
+        
+        me = await bot.get_me()
+        permissions = await bot.get_permissions(chat_obj, me)
+        title = getattr(chat_obj, 'title', 'Sem Título')
+        
+        if permissions.is_admin:
+            # Tentar obter link de convite
+            invite_link = None
+            try:
+                full_chat = await bot(functions.channels.GetFullChannelRequest(channel=chat_obj))
+                invite_link = getattr(full_chat.full_chat, 'exported_invite', None)
+                if invite_link: invite_link = invite_link.link
+            except: pass
+
+            data = {"chat_id": str(chat_id), "title": title, "is_active": True, "invite_link": invite_link}
+            supabase.table("bot_groups").upsert(data, on_conflict="chat_id").execute()
+            return True
+        else:
+            supabase.table("bot_groups").update({"is_active": False}).eq("chat_id", str(chat_id)).execute()
+            return False
+    except Exception as e:
+        logger.error(f"Erro ao sincronizar chat {chat_id}: {e}")
+        return False
+
 @bot.on(events.ChatAction)
 async def chat_action_handler(event):
-    """Detecta quando o bot é adicionado ou removido de chats/canais."""
-    try:
-        chat = await event.get_chat()
-        chat_id = str(event.chat_id)
-        title = getattr(chat, 'title', 'Sem Título')
-        
-        # Bot foi adicionado ou permissões alteradas
-        if event.user_added or event.new_pin or (event.action_message and hasattr(event.action_message.action, 'users')):
-            # Verificar se o bot é admin
-            me = await bot.get_me()
-            permissions = await bot.get_permissions(chat, me)
-            
-            if permissions.is_admin:
-                logger.info(f"✅ Bot ativado como admin em: {title} ({chat_id})")
-                
-                # Tentar obter link de convite
-                invite_link = None
-                try:
-                    full_chat = await bot(functions.channels.GetFullChannelRequest(channel=chat))
-                    invite_link = getattr(full_chat.full_chat, 'exported_invite', None)
-                    if invite_link: invite_link = invite_link.link
-                except: pass
+    """Detecta adições e remoções em grupos."""
+    if event.user_added or event.user_kicked or event.user_left:
+        await sync_chat_status(event.chat_id)
 
-                # Upsert no Supabase
-                data = {
-                    "chat_id": chat_id,
-                    "title": title,
-                    "is_active": True,
-                    "invite_link": invite_link
-                }
-                supabase.table("bot_groups").upsert(data, on_conflict="chat_id").execute()
-                
-                # Mensagem de boas-vindas no grupo (opcional)
-                try:
-                    await bot.send_message(event.chat_id, "✅ **Bot Canais18 Ativado!**\n\nEste grupo agora faz parte da nossa rede de divulgação. Mantenha o bot como admin para garantir sua permanência no site.\n\n_Você pode apagar esta mensagem agora._")
-                except: pass
-
-        # Bot foi removido
-        elif event.user_kicked or event.user_left:
-            me = await bot.get_me()
-            if event.user_id == me.id:
-                logger.info(f"❌ Bot removido de: {title} ({chat_id})")
-                supabase.table("bot_groups").update({"is_active": False}).eq("chat_id", chat_id).execute()
-
-    except Exception as e:
-        logger.error(f"Erro no chat_action_handler: {e}")
+@bot.on(events.Raw(types.UpdateChannelParticipant))
+async def channel_update_handler(event):
+    """Detecta mudanças de permissão especificamente em canais."""
+    await sync_chat_status(event.channel_id)
 
 # --- MOTOR DE REPLICAÇÃO NATIVO ---
 
@@ -191,7 +182,16 @@ async def show_final_menu(event, user_id):
 
 @bot.on(events.NewMessage(pattern='/start'))
 async def start(event):
-    await event.respond("👋 **Canais18 Bot Pro**", buttons=MAIN_MENU_REPLY)
+    await event.respond("👋 **Canais18 Bot Pro**\n\n🔄 _Sincronizando seus canais..._", buttons=MAIN_MENU_REPLY)
+    # Sincronização em background para não travar a UI
+    async def sync_all():
+        try:
+            async for dialog in bot.iter_dialogs():
+                if dialog.is_channel or dialog.is_group:
+                    await sync_chat_status(dialog.id, dialog.entity)
+        except Exception as e:
+            logger.error(f"Erro na sincronização global: {e}")
+    asyncio.create_task(sync_all())
 
 @bot.on(events.NewMessage(pattern='/test_db'))
 async def test_db_handler(event):
